@@ -558,20 +558,12 @@ enddef
 def AddBufListener(lspserver: dict<any>, bnr: number): void
   # Add a per-buffer listener so incremental text changes are pushed to the
   # server and pull diagnostics are debounced from edits.
-  var CallBack = (_, _, _, _, changes: list<dict<any>>) => {
-    lspserver.textdocDidChange(bnr, false, changes)
+  var listenerId = listener_add((_bnr: number, start: number, end: number, added: number, changes: list<dict<number>>) => {
+    lspserver.textdocDidChange(bnr)
     if lspserver.isDiagnosticsProvider
       lspserver.queuePullDiagnostics(bnr)
     endif
-  }
-  var listenerId: number
-  if has('patch-9.2.0970')
-      && lspserver.textDocumentSync == 2
-      && opt.lspOptions.incrementalSync
-    listenerId = call('listener_add', [CallBack, bnr, {text: true}])
-  else
-    listenerId = call('listener_add', [CallBack, bnr])
-  endif
+  }, bnr)
   var listenerIds = bnr->getbufvar('LspListenerIds', [])
   setbufvar(bnr, 'LspListenerIds', listenerIds + [listenerId])
 enddef
@@ -828,7 +820,7 @@ export def BufferLoadedInWin(bnr: number)
   endif
   for lspserver in lspservers
     if !lspserver->empty() && lspserver.ready
-      lspserver.textdocDidChange(bnr, true)
+      lspserver.textdocDidChange(bnr)
     endif
   endfor
   # Refresh the displayed diags visuals
@@ -857,7 +849,7 @@ export def BufferExternallyChanged(bnr: number): void
   for lspserver in lspservers
     if !lspserver->empty() && lspserver.running && lspserver.ready
       # Notify server of the change to trigger re-analysis
-      lspserver.textdocDidChange(bnr, true)
+      lspserver.textdocDidChange(bnr)
       if lspserver.isDiagnosticsProvider
         # For pull-based diagnostics, explicitly request fresh diagnostics
         lspserver.queuePullDiagnostics(bnr)
